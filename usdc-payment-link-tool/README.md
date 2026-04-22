@@ -47,6 +47,8 @@ Stores long-lived merchant sessions.
 ### invoices
 Stores hosted invoice details and lifecycle state.
 
+**`metadata` (JSONB)** — arbitrary key/value data for integrations. Today nothing in this repo filters invoices in SQL by `metadata`; default rows use a small object (for example `{"product":"ASTROpay"}`). Migration **`003_invoice_metadata_jsonb_index_plan.sql`** documents when to add expression indexes vs `GIN (metadata jsonb_path_ops)` vs key-specific btree indexes, and installs a `COMMENT ON COLUMN` pointer for operators. **Do not add JSONB indexes preemptively** (write amplification and unused GIN are common pitfalls); add a migration alongside the first real `WHERE metadata …` query.
+
 ### payment_events
 Append-only audit trail for payment and settlement events.
 

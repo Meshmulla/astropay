@@ -1,3 +1,8 @@
+//! HTTP-facing models mapped from SQL rows.
+//!
+//! **`Invoice.metadata`** is JSONB for extensibility. It is not used in SQL filters in the
+//! current codebase; indexing follows the plan in `../usdc-payment-link-tool/migrations/003_invoice_metadata_jsonb_index_plan.sql`.
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -45,6 +50,7 @@ pub struct Invoice {
     pub settlement_hash: Option<String>,
     pub checkout_url: Option<String>,
     pub qr_data_url: Option<String>,
+    /// Opaque JSONB; add DB indexes only when queries filter on documented keys (see migrations).
     pub metadata: Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

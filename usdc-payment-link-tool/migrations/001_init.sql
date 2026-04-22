@@ -42,6 +42,7 @@ CREATE TABLE invoices (
   settlement_hash TEXT,
   checkout_url TEXT,
   qr_data_url TEXT,
+  -- JSONB: indexing strategy is documented in 003_invoice_metadata_jsonb_index_plan.sql (no automatic GIN).
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

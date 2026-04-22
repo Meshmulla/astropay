@@ -17,6 +17,14 @@ What is intentionally not faked yet:
 
 Those routes return `501 Not Implemented` in the Rust service until the Stellar transaction logic is ported properly.
 
+## Database migrations
+
+SQL lives in `../usdc-payment-link-tool/migrations/`. Apply with `cargo run --bin migrate` from `rust-backend/`. The runner errors clearly if the migrations directory is missing or if a file’s SQL fails.
+
+**Invoice `metadata` (JSONB):** migration `003_invoice_metadata_jsonb_index_plan.sql` records the indexing policy—no speculative GIN until real filter queries exist—and sets `COMMENT ON COLUMN invoices.metadata` for DB catalog visibility. See the Next.js README for the same guidance.
+
+**Verification:** `cargo test` (includes a guard that 003 stays comment/plan-only without `CREATE INDEX`).
+
 ## Run locally
 
 ```bash
