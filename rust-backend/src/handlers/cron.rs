@@ -146,6 +146,11 @@ pub async fn settle(
     ))
 }
 
+#[cfg(test)]
+mod tests {
+    use axum::http::{HeaderMap, HeaderValue, header};
+
+    use crate::auth::authorize_cron_request;
 fn authorize_cron(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
     authorize_cron_secret(state.config.cron_secret.as_str(), headers)
 }

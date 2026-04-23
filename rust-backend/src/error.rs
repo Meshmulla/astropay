@@ -2,7 +2,7 @@ use std::fmt;
 
 use axum::{
     Json,
-    http::StatusCode,
+    http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
@@ -64,6 +64,11 @@ pub enum AppError {
     #[error("{0}")]
     BadRequest(String),
     #[error("{0}")]
+    Unauthorized(String),
+    #[error("Too many login attempts")]
+    RateLimited {
+        retry_after_seconds: u64,
+    },
     Unauthorized(UnauthorizedError),
     #[error("{0}")]
     NotFound(String),
@@ -80,6 +85,19 @@ struct LegacyErrorBody {
     error: String,
 }
 
+#[derive(Serialize)]
+struct RateLimitedBody {
+    error: RateLimitedInner,
+}
+
+#[derive(Serialize)]
+struct RateLimitedInner {
+    code: &'static str,
+    message: String,
+    #[serde(rename = "retryAfterSeconds")]
+    retry_after_seconds: u64,
+}
+
 impl AppError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::BadRequest(message.into())
@@ -93,6 +111,12 @@ impl AppError {
 
     pub fn unauthorized_code(code: AuthErrorCode) -> Self {
         Self::Unauthorized(UnauthorizedError::from_code(code))
+    }
+
+    pub fn rate_limited(retry_after_seconds: u64) -> Self {
+        Self::RateLimited {
+            retry_after_seconds,
+        }
     }
 
     pub fn not_found(message: impl Into<String>) -> Self {
@@ -111,6 +135,31 @@ impl AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
+            Self::RateLimited {
+                retry_after_seconds,
+            } => {
+                let body = RateLimitedBody {
+                    error: RateLimitedInner {
+                        code: "AUTH_RATE_LIMITED",
+                        message: "Too many login attempts. Please wait before trying again."
+                            .to_string(),
+                        retry_after_seconds,
+                    },
+                };
+                let mut res = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+                if let Ok(h) = HeaderValue::from_str(&retry_after_seconds.to_string()) {
+                    res.headers_mut().insert(header::RETRY_AFTER, h);
+                }
+                res
+            }
+            Self::BadRequest(message) => (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorBody { error: message }),
+            )
+                .into_response(),
+            Self::Unauthorized(message) => (
+                StatusCode::UNAUTHORIZED,
+                Json(ErrorBody { error: message }),
             Self::Unauthorized(err) => (
                 StatusCode::UNAUTHORIZED,
                 Json(UnauthorizedBody { error: err }),
@@ -123,21 +172,25 @@ impl IntoResponse for AppError {
                 .into_response(),
             Self::NotFound(message) => (
                 StatusCode::NOT_FOUND,
+                Json(ErrorBody { error: message }),
                 Json(LegacyErrorBody { error: message }),
             )
                 .into_response(),
             Self::Conflict(message) => (
                 StatusCode::CONFLICT,
+                Json(ErrorBody { error: message }),
                 Json(LegacyErrorBody { error: message }),
             )
                 .into_response(),
             Self::NotImplemented(message) => (
                 StatusCode::NOT_IMPLEMENTED,
+                Json(ErrorBody { error: message }),
                 Json(LegacyErrorBody { error: message }),
             )
                 .into_response(),
             Self::Internal => (
                 StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody {
                 Json(LegacyErrorBody {
                     error: "Unexpected error".to_string(),
                 }),
@@ -191,5 +244,24 @@ mod tests {
         let err = UnauthorizedError::from_code(AuthErrorCode::CronSecretMismatch);
         let v = serde_json::to_value(&err).unwrap();
         assert_eq!(v["code"], "AUTH_CRON_SECRET_MISMATCH");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RateLimitedBody, RateLimitedInner};
+
+    #[test]
+    fn rate_limited_json_uses_auth_rate_limited_code() {
+        let body = RateLimitedBody {
+            error: RateLimitedInner {
+                code: "AUTH_RATE_LIMITED",
+                message: "Too many login attempts. Please wait before trying again.".to_string(),
+                retry_after_seconds: 42,
+            },
+        };
+        let v = serde_json::to_value(&body).unwrap();
+        assert_eq!(v["error"]["code"], "AUTH_RATE_LIMITED");
+        assert_eq!(v["error"]["retryAfterSeconds"], 42);
     }
 }

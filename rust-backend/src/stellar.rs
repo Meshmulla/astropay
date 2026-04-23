@@ -217,6 +217,10 @@ mod tests {
             invoice_expiry_hours: 24,
             cron_secret: "cron".to_string(),
             secure_cookies: false,
+            login_rate_ip_window_secs: 600,
+            login_rate_ip_max: 80,
+            login_rate_email_window_secs: 900,
+            login_rate_email_fail_max: 12,
         }
     }
 

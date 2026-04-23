@@ -16,6 +16,22 @@ use crate::{
     models::Merchant,
 };
 
+/// Validates `Authorization: Bearer <token>` for cron and webhook routes.
+pub fn authorize_cron_request(cron_secret: &str, headers: &HeaderMap) -> Result<(), AppError> {
+    if cron_secret.is_empty() {
+        return Err(AppError::unauthorized("Unauthorized".to_string()));
+    }
+    let token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "));
+    if token == Some(cron_secret) {
+        Ok(())
+    } else {
+        Err(AppError::unauthorized("Unauthorized".to_string()))
+    }
+}
+
 pub const SESSION_COOKIE: &str = "astropay_session";
 
 /// Same rule as registration SQL: neither incoming key may appear in any existing
@@ -201,6 +217,10 @@ mod tests {
             invoice_expiry_hours: 24,
             cron_secret: "cron".to_string(),
             secure_cookies: false,
+            login_rate_ip_window_secs: 600,
+            login_rate_ip_max: 80,
+            login_rate_email_window_secs: 900,
+            login_rate_email_fail_max: 12,
         }
     }
 
@@ -230,6 +250,21 @@ mod tests {
     }
 
     #[test]
+    fn authorize_cron_accepts_matching_bearer() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer mysecret"),
+        );
+        assert!(authorize_cron_request("mysecret", &headers).is_ok());
+    }
+
+    #[test]
+    fn authorize_cron_rejects_empty_configured_secret() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer x"),
     fn wallet_conflict_detects_stellar_reuse() {
         let s1 = g_key('1');
         let t1 = g_key('2');

@@ -22,6 +22,12 @@ pub struct Config {
     /// Shared secret for `Authorization: Bearer` on cron and Stellar webhook routes (see `auth::authorize_cron_request`).
     pub cron_secret: String,
     pub secure_cookies: bool,
+    /// Sliding window (seconds) for per-IP `POST /api/auth/login` attempts. `LOGIN_RATE_IP_MAX=0` disables.
+    pub login_rate_ip_window_secs: u64,
+    pub login_rate_ip_max: u32,
+    /// Sliding window (seconds) for failed logins per normalized email. `LOGIN_RATE_EMAIL_FAIL_MAX=0` disables.
+    pub login_rate_email_window_secs: u64,
+    pub login_rate_email_fail_max: u32,
 }
 
 impl Config {
@@ -58,6 +64,22 @@ impl Config {
                 .unwrap_or(24),
             cron_secret: env::var("CRON_SECRET").unwrap_or_default(),
             secure_cookies: app_url.starts_with("https://"),
+            login_rate_ip_window_secs: env::var("LOGIN_RATE_IP_WINDOW_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(600),
+            login_rate_ip_max: env::var("LOGIN_RATE_IP_MAX")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(80),
+            login_rate_email_window_secs: env::var("LOGIN_RATE_EMAIL_WINDOW_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(900),
+            login_rate_email_fail_max: env::var("LOGIN_RATE_EMAIL_FAIL_MAX")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(12),
         })
     }
 
@@ -89,6 +111,10 @@ mod tests {
             invoice_expiry_hours: 24,
             cron_secret: "cron".to_string(),
             secure_cookies: false,
+            login_rate_ip_window_secs: 600,
+            login_rate_ip_max: 80,
+            login_rate_email_window_secs: 900,
+            login_rate_email_fail_max: 12,
         }
     }
 
